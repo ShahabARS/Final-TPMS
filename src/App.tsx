@@ -15,7 +15,7 @@ import BoardPage from './pages/BoardPage';
  */
 function App() {
   // State to track if user is logged in
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [userEmail, setUserEmail] = useState('');
 
   // This function is called when user submits login form

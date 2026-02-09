@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Task, TaskStatus } from '../types';
+import type { Task } from '../types';
+import { TaskStatus } from '../types';
 import Column from '../components/Column';
 
 /**
