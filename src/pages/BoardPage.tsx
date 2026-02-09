@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import type { Task } from '../types';
-import { TaskStatus } from '../types';
+import type { Task, Project, User } from '../types';
+import { TaskStatus, Role } from '../types';
 import Column from '../components/Column';
+import CreateTaskModal from '../modals/CreateTaskModal';
+import TaskDetailModal from '../modals/TaskDetailModal';
+import BoardSettingsModal from '../modals/BoardSettingsModal';
+import TeamMembersModal from '../modals/TeamMembersModal';
+import CreateColumnModal from '../modals/CreateColumnModal';
 
 /**
  * BoardPage Component
@@ -51,21 +56,53 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
   ]);
 
   // State for columns - dynamic, can be customized
-  const [columns, setColumns] = useState<TaskStatus[]>([
+  // Using string[] to allow custom columns beyond the TaskStatus enum
+  const [columns, setColumns] = useState<string[]>([
     TaskStatus.TODO,
     TaskStatus.DOING,
     TaskStatus.DONE,
   ]);
 
-  // State for which modal is open (we'll create modals next)
-  const [openModal, setOpenModal] = useState<'none' | 'settings' | 'team' | 'createTask' | 'createColumn' | 'taskDetail'>('none');
+  // State for project (board settings)
+  const [project, setProject] = useState<Project>({
+    projectId: '1',
+    name: 'TPMS Project',
+    description: 'Team Project Management System',
+    leaderId: 'leader1',
+  });
+
+  // State for team members
+  const [teamMembers, setTeamMembers] = useState<User[]>([
+    {
+      userId: 'leader1',
+      name: 'John Doe',
+      email: 'john@example.com',
+      role: Role.LEADER,
+    },
+    {
+      userId: 'member1',
+      name: 'Jane Smith',
+      email: 'jane@example.com',
+      role: Role.MEMBER,
+    },
+    {
+      userId: 'member2',
+      name: 'Bob Johnson',
+      email: 'bob@example.com',
+      role: Role.MEMBER,
+    },
+  ]);
+
+  // State for which modal is open
+  const [openModal, setOpenModal] = useState<
+    'none' | 'settings' | 'team' | 'createTask' | 'createColumn' | 'taskDetail'
+  >('none');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   // Handler for when a task card is clicked
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
-    setOpenModal('taskDetail'); // We'll create this modal later
-    console.log('Task clicked:', task);
+    setOpenModal('taskDetail');
   };
 
   // Handler for modal buttons
@@ -78,9 +115,43 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
     setSelectedTask(null);
   };
 
-  // Handler for creating a new task (will be implemented in modal)
-  const handleCreateTask = (newTask: Task) => {
+  // Handler for creating a new task
+  const handleCreateTask = (newTaskData: Omit<Task, 'taskId'>) => {
+    const newTask: Task = {
+      ...newTaskData,
+      taskId: `task-${Date.now()}`,
+    };
     setTasks([...tasks, newTask]);
+    handleCloseModal();
+  };
+
+  // Handler for updating a task
+  const handleUpdateTask = (taskId: string, updates: Partial<Task>) => {
+    setTasks(
+      tasks.map((task) => (task.taskId === taskId ? { ...task, ...updates } : task))
+    );
+  };
+
+  // Handler for deleting a task
+  const handleDeleteTask = (taskId: string) => {
+    setTasks(tasks.filter((task) => task.taskId !== taskId));
+  };
+
+  // Handler for updating project
+  const handleUpdateProject = (projectId: string, updates: Partial<Project>) => {
+    if (project.projectId === projectId) {
+      setProject({ ...project, ...updates });
+    }
+  };
+
+  // Handler for creating a new column
+  const handleCreateColumn = (columnName: string) => {
+    // Check if column already exists
+    if (columns.includes(columnName)) {
+      return;
+    }
+    // Add new column
+    setColumns([...columns, columnName]);
     handleCloseModal();
   };
 
@@ -89,7 +160,10 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
       {/* Header/Navbar */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-800">TPMS Board</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
+            <p className="text-sm text-gray-500">{project.description}</p>
+          </div>
           <div className="flex items-center gap-4">
             <span className="text-gray-600">Welcome, {userEmail}</span>
             <button
@@ -137,54 +211,57 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
           {columns.map((columnStatus) => (
             <Column
               key={columnStatus}
-              status={columnStatus}
+              status={columnStatus as TaskStatus}
               tasks={tasks}
               onTaskClick={handleTaskClick}
-              onAddTask={columnStatus === TaskStatus.TODO ? () => handleOpenModal('createTask') : undefined}
+              onAddTask={
+                columnStatus === TaskStatus.TODO
+                  ? () => handleOpenModal('createTask')
+                  : undefined
+              }
             />
           ))}
         </div>
-
-        {/* Modal Placeholders - We'll create actual modals next */}
-        {openModal !== 'none' && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-800">
-                  {openModal === 'settings' && 'Board Settings'}
-                  {openModal === 'team' && 'Team Members'}
-                  {openModal === 'createTask' && 'Create New Task'}
-                  {openModal === 'createColumn' && 'Create New Column'}
-                  {openModal === 'taskDetail' && 'Task Details'}
-                </h2>
-                <button
-                  onClick={handleCloseModal}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="text-gray-600">
-                {openModal === 'taskDetail' && selectedTask ? (
-                  <div>
-                    <p className="font-semibold mb-2 text-lg">{selectedTask.title}</p>
-                    <p className="text-sm mb-2">{selectedTask.description}</p>
-                    <p className="text-xs text-gray-500">Status: {selectedTask.status}</p>
-                  </div>
-                ) : (
-                  <p>Modal for "{openModal}" will be implemented next!</p>
-                )}
-              </div>
-              <button
-                onClick={handleCloseModal}
-                className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
       </main>
+
+      {/* Modals */}
+      <CreateTaskModal
+        isOpen={openModal === 'createTask'}
+        onClose={handleCloseModal}
+        onCreateTask={handleCreateTask}
+        availableStatuses={columns as TaskStatus[]}
+      />
+
+      <TaskDetailModal
+        isOpen={openModal === 'taskDetail'}
+        onClose={handleCloseModal}
+        task={selectedTask}
+        onUpdateTask={handleUpdateTask}
+        onDeleteTask={handleDeleteTask}
+        availableStatuses={columns as TaskStatus[]}
+        currentUserId="current-user-1"
+      />
+
+      <BoardSettingsModal
+        isOpen={openModal === 'settings'}
+        onClose={handleCloseModal}
+        project={project}
+        onUpdateProject={handleUpdateProject}
+      />
+
+      <TeamMembersModal
+        isOpen={openModal === 'team'}
+        onClose={handleCloseModal}
+        members={teamMembers}
+        currentUserRole={Role.LEADER}
+      />
+
+      <CreateColumnModal
+        isOpen={openModal === 'createColumn'}
+        onClose={handleCloseModal}
+        existingColumns={columns}
+        onCreateColumn={handleCreateColumn}
+      />
     </div>
   );
 }
