@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 
 /**
  * LoginPage Component
@@ -11,17 +12,22 @@ import { useState } from 'react';
  * - onChange: Event handler that runs when user types in an input
  * - onSubmit: Event handler that runs when form is submitted
  */
-function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => void }) {
+interface LoginPageProps {
+  onLogin: (email: string, password: string) => Promise<void> | void;
+  isLoading?: boolean;
+  error?: string | null;
+}
+
+function LoginPage({ onLogin, isLoading = false, error }: LoginPageProps) {
   // useState creates a "state variable" - when it changes, React re-renders the component
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault(); // Prevents page refresh (default form behavior)
     
-    // For now, we'll just call onLogin with the email/password
-    // Later, this will call an API
-    onLogin(email, password);
+    // Call onLogin from parent (App) which will talk to the API
+    await onLogin(email, password);
   };
 
   return (
@@ -62,11 +68,18 @@ function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => 
             />
           </div>
 
+          {error && (
+            <p className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
+
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            disabled={isLoading}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Login
+            {isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
       </div>
