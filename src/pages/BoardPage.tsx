@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Task, Project, User } from '../types';
 import { TaskStatus, Role } from '../types';
 import Column from '../components/Column';
@@ -7,6 +7,7 @@ import TaskDetailModal from '../modals/TaskDetailModal';
 import BoardSettingsModal from '../modals/BoardSettingsModal';
 import TeamMembersModal from '../modals/TeamMembersModal';
 import CreateColumnModal from '../modals/CreateColumnModal';
+import { projectsApi, tasksApi, type Task as ApiTask, type UserResponse } from '../services/api';
 
 /**
  * BoardPage Component
@@ -25,38 +26,14 @@ interface BoardPageProps {
 }
 
 function BoardPage({ userEmail, onLogout }: BoardPageProps) {
-  // State for tasks - later this will come from API
-  const [tasks, setTasks] = useState<Task[]>([
-    // Sample tasks for demonstration
-    {
-      taskId: '1',
-      title: 'Design Login Page',
-      description: 'Create wireframes and mockups for the login interface',
-      status: TaskStatus.TODO,
-      deadline: new Date('2026-02-15'),
-      effort: 4,
-    },
-    {
-      taskId: '2',
-      title: 'Implement Authentication',
-      description: 'Set up user login and session management',
-      status: TaskStatus.DOING,
-      deadline: new Date('2026-02-12'),
-      effort: 8,
-      assignedTo: 'user1',
-    },
-    {
-      taskId: '3',
-      title: 'Setup Database',
-      description: 'Configure MongoDB and create initial schemas',
-      status: TaskStatus.DONE,
-      deadline: new Date('2026-02-10'),
-      effort: 6,
-    },
-  ]);
+  // State for loading and errors
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // State for columns - dynamic, can be customized
-  // Using string[] to allow custom columns beyond the TaskStatus enum
+  // State for tasks - loaded from API
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  // State for columns
   const [columns, setColumns] = useState<string[]>([
     TaskStatus.TODO,
     TaskStatus.DOING,
@@ -64,40 +41,221 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
   ]);
 
   // State for project (board settings)
-  const [project, setProject] = useState<Project>({
-    projectId: '1',
-    name: 'TPMS Project',
-    description: 'Team Project Management System',
-    leaderId: 'leader1',
-  });
+  const [project, setProject] = useState<Project | null>(null);
 
   // State for team members
-  const [teamMembers, setTeamMembers] = useState<User[]>([
-    {
-      userId: 'leader1',
-      name: 'John Doe',
-      email: 'john@example.com',
-      role: Role.LEADER,
-    },
-    {
-      userId: 'member1',
-      name: 'Jane Smith',
-      email: 'jane@example.com',
-      role: Role.MEMBER,
-    },
-    {
-      userId: 'member2',
-      name: 'Bob Johnson',
-      email: 'bob@example.com',
-      role: Role.MEMBER,
-    },
-  ]);
+  const [teamMembers, setTeamMembers] = useState<User[]>([]);
+
+  // State for current user role
+  const [currentUserRole, setCurrentUserRole] = useState<Role>(Role.MEMBER);
 
   // State for which modal is open
   const [openModal, setOpenModal] = useState<
     'none' | 'settings' | 'team' | 'createTask' | 'createColumn' | 'taskDetail'
   >('none');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  // Load project and tasks on component mount
+  useEffect(() => {
+    const loadBoardData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Get all projects for user
+        const projectsRes = await projectsApi.getAll();
+        
+        if (projectsRes.data.length === 0) {
+          setError('No projects found. Please create a project first.');
+          setIsLoading(false);
+          return;
+        }
+
+        // Use the first project
+        const apiProject = projectsRes.data[0];
+        
+        // Convert API Project to internal Project type
+        const leaderId = typeof apiProject.leaderId === 'string' ? apiProject.leaderId : (apiProject.leaderId as Record<string, string>)._id;
+        const convertedProject: Project = {
+          projectId: apiProject._id,
+          name: apiProject.name,
+          description: apiProject.description,
+          leaderId: leaderId,
+        };
+
+        setProject(convertedProject);
+
+        // Load columns if they exist in the project
+        if (apiProject.columns && apiProject.columns.length > 0) {
+          setColumns(apiProject.columns);
+        }
+
+        // Get tasks for this project
+        const tasksRes = await tasksApi.getByProject(apiProject._id);
+        
+        // Convert API Tasks to internal Task type
+        const convertedTasks: Task[] = tasksRes.data.map((apiTask: ApiTask) => ({
+          taskId: apiTask._id,
+          title: apiTask.title,
+          description: apiTask.description,
+          status: apiTask.status as TaskStatus,
+          deadline: apiTask.deadline ? new Date(apiTask.deadline) : undefined,
+          effort: apiTask.effort,
+          assignedTo: apiTask.assignedTo,
+        }));
+
+        setTasks(convertedTasks);
+
+        // Get project members
+        const membersRes = await projectsApi.getMembers(apiProject._id);
+        
+        // Convert API UserResponse to internal User type
+        const convertedMembers: User[] = membersRes.data.map((member: UserResponse) => ({
+          userId: member.userId,
+          name: member.name,
+          email: member.email,
+          role: member.role as Role,
+        }));
+
+        setTeamMembers(convertedMembers);
+
+        // Determine current user role based on email
+        const currentMember = convertedMembers.find(m => m.email === userEmail);
+        if (currentMember) {
+          setCurrentUserRole(currentMember.role);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load board data';
+        setError(message);
+        console.error('Error loading board data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadBoardData();
+  }, [userEmail]);
+
+  // Handler for creating a new task
+  const handleCreateTask = async (newTaskData: Omit<Task, 'taskId'>) => {
+    try {
+      if (!project) return;
+
+      // Create task via API
+      const response = await tasksApi.create({
+        projectId: project.projectId,
+        title: newTaskData.title,
+        description: newTaskData.description,
+        status: newTaskData.status,
+        assignedTo: newTaskData.assignedTo,
+        deadline: newTaskData.deadline?.toISOString(),
+        effort: newTaskData.effort,
+      });
+
+      // Add task to local state
+      const newTask: Task = {
+        taskId: response.data._id,
+        title: response.data.title,
+        description: response.data.description,
+        status: response.data.status as TaskStatus,
+        deadline: response.data.deadline ? new Date(response.data.deadline) : undefined,
+        effort: response.data.effort,
+        assignedTo: response.data.assignedTo,
+      };
+
+      setTasks([...tasks, newTask]);
+      handleCloseModal();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create task';
+      alert(`Error creating task: ${message}`);
+      console.error('Error creating task:', err);
+    }
+  };
+
+  // Handler for updating a task
+  const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    try {
+      // Update task via API
+      await tasksApi.update(taskId, {
+        ...updates,
+        deadline: updates.deadline?.toISOString(),
+      });
+
+      // Update in local state
+      setTasks(
+        tasks.map((task) => (task.taskId === taskId ? { ...task, ...updates } : task))
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update task';
+      alert(`Error updating task: ${message}`);
+      console.error('Error updating task:', err);
+    }
+  };
+
+  // Handler for deleting a task
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      // Delete task via API
+      await tasksApi.delete(taskId);
+
+      // Remove from local state
+      setTasks(tasks.filter((task) => task.taskId !== taskId));
+      handleCloseModal();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete task';
+      alert(`Error deleting task: ${message}`);
+      console.error('Error deleting task:', err);
+    }
+  };
+
+  // Handler for updating project
+  const handleUpdateProject = async (projectId: string, updates: Partial<Project>) => {
+    try {
+      if (!project || project.projectId !== projectId) return;
+
+      // Update project via API
+      await projectsApi.update(projectId, {
+        name: updates.name,
+        description: updates.description,
+        columns: updates.description ? undefined : columns,
+      });
+
+      // Update in local state
+      setProject({ ...project, ...updates });
+      handleCloseModal();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update project';
+      alert(`Error updating project: ${message}`);
+      console.error('Error updating project:', err);
+    }
+  };
+
+  // Handler for creating a new column
+  const handleCreateColumn = async (columnName: string) => {
+    try {
+      if (!project) return;
+
+      // Check if column already exists
+      if (columns.includes(columnName)) {
+        alert('Column already exists');
+        return;
+      }
+
+      // Update project with new columns
+      const newColumns = [...columns, columnName];
+      await projectsApi.update(project.projectId, {
+        columns: newColumns,
+      });
+
+      // Add new column to local state
+      setColumns(newColumns);
+      handleCloseModal();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create column';
+      alert(`Error creating column: ${message}`);
+      console.error('Error creating column:', err);
+    }
+  };
 
   // Handler for when a task card is clicked
   const handleTaskClick = (task: Task) => {
@@ -115,51 +273,59 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
     setSelectedTask(null);
   };
 
-  // Handler for creating a new task
-  const handleCreateTask = (newTaskData: Omit<Task, 'taskId'>) => {
-    const newTask: Task = {
-      ...newTaskData,
-      taskId: `task-${Date.now()}`,
-    };
-    setTasks([...tasks, newTask]);
-    handleCloseModal();
-  };
-
-  // Handler for updating a task
-  const handleUpdateTask = (taskId: string, updates: Partial<Task>) => {
-    setTasks(
-      tasks.map((task) => (task.taskId === taskId ? { ...task, ...updates } : task))
+  // Show error state
+  if (error && !isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="max-w-md p-8 bg-white rounded-lg shadow-md">
+          <h2 className="mb-4 text-xl font-bold text-red-600">Error</h2>
+          <p className="mb-6 text-gray-700">{error}</p>
+          <button
+            onClick={onLogout}
+            className="w-full px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
     );
-  };
+  }
 
-  // Handler for deleting a task
-  const handleDeleteTask = (taskId: string) => {
-    setTasks(tasks.filter((task) => task.taskId !== taskId));
-  };
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="inline-block w-12 h-12 border-b-2 border-blue-600 rounded-full animate-spin"></div>
+          <p className="mt-4 text-gray-600">Loading board...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Handler for updating project
-  const handleUpdateProject = (projectId: string, updates: Partial<Project>) => {
-    if (project.projectId === projectId) {
-      setProject({ ...project, ...updates });
-    }
-  };
-
-  // Handler for creating a new column
-  const handleCreateColumn = (columnName: string) => {
-    // Check if column already exists
-    if (columns.includes(columnName)) {
-      return;
-    }
-    // Add new column
-    setColumns([...columns, columnName]);
-    handleCloseModal();
-  };
+  // Show empty state if no project
+  if (!project) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="max-w-md p-8 bg-white rounded-lg shadow-md">
+          <h2 className="mb-4 text-xl font-bold text-gray-800">No Project Found</h2>
+          <p className="mb-6 text-gray-600">You don't have any projects yet.</p>
+          <button
+            onClick={onLogout}
+            className="w-full px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header/Navbar */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <header className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between px-4 py-4 mx-auto max-w-7xl">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
             <p className="text-sm text-gray-500">{project.description}</p>
@@ -168,7 +334,7 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
             <span className="text-gray-600">Welcome, {userEmail}</span>
             <button
               onClick={onLogout}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+              className="px-4 py-2 text-gray-700 transition-colors bg-gray-200 rounded-md hover:bg-gray-300"
             >
               Logout
             </button>
@@ -177,37 +343,37 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
       </header>
 
       {/* Board Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="px-4 py-8 mx-auto max-w-7xl">
         {/* Action Buttons */}
-        <div className="mb-6 flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 mb-6">
           <button
             onClick={() => handleOpenModal('settings')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-700"
           >
             Board Settings
           </button>
           <button
             onClick={() => handleOpenModal('team')}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+            className="px-4 py-2 text-white transition-colors bg-green-600 rounded-md hover:bg-green-700"
           >
             Team Members
           </button>
           <button
             onClick={() => handleOpenModal('createTask')}
-            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+            className="px-4 py-2 text-white transition-colors bg-purple-600 rounded-md hover:bg-purple-700"
           >
             Create Task
           </button>
           <button
             onClick={() => handleOpenModal('createColumn')}
-            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+            className="px-4 py-2 text-white transition-colors bg-orange-600 rounded-md hover:bg-orange-700"
           >
             Create Column
           </button>
         </div>
 
         {/* Kanban Columns */}
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 pb-4 overflow-x-auto">
           {columns.map((columnStatus) => (
             <Column
               key={columnStatus}
@@ -253,7 +419,7 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
         isOpen={openModal === 'team'}
         onClose={handleCloseModal}
         members={teamMembers}
-        currentUserRole={Role.LEADER}
+        currentUserRole={currentUserRole}
       />
 
       <CreateColumnModal

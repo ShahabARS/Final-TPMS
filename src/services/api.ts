@@ -190,6 +190,43 @@ export const projectsApi = {
   ): Promise<{ success: boolean; count: number; data: UserResponse[] }> => {
     return apiRequest(`/projects/${id}/members`);
   },
+
+  /**
+   * Delete project
+   */
+  delete: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return apiRequest(`/projects/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Add member to project
+   */
+  addMember: async (
+    projectId: string,
+    memberId: string
+  ): Promise<ProjectResponse> => {
+    return apiRequest<ProjectResponse>(`/projects/${projectId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ memberId }),
+    });
+  },
+
+  /**
+   * Remove member from project
+   */
+  removeMember: async (
+    projectId: string,
+    memberId: string
+  ): Promise<ProjectResponse> => {
+    return apiRequest<ProjectResponse>(
+      `/projects/${projectId}/members/${memberId}`,
+      {
+        method: 'DELETE',
+      }
+    );
+  },
 };
 
 // ==================== TASKS API ====================
