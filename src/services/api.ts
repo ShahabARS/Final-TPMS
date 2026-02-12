@@ -283,9 +283,20 @@ export const tasksApi = {
     deadline?: string;
     effort?: number;
   }): Promise<TaskResponse> => {
+    // Sanitize data to ensure it's JSON serializable
+    const sanitizedData = {
+      projectId: String(data.projectId),
+      title: String(data.title),
+      description: data.description ? String(data.description) : undefined,
+      status: data.status ? String(data.status) : undefined,
+      assignedTo: data.assignedTo ? String(data.assignedTo) : undefined,
+      deadline: data.deadline ? String(data.deadline) : undefined,
+      effort: data.effort ? Number(data.effort) : undefined,
+    };
+    
     return apiRequest<TaskResponse>('/tasks', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(sanitizedData),
     });
   },
 

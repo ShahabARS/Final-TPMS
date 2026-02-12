@@ -141,6 +141,11 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
     try {
       if (!project) return;
 
+      // Convert deadline to ISO string safely
+      const deadlineString = newTaskData.deadline instanceof Date 
+        ? newTaskData.deadline.toISOString() 
+        : newTaskData.deadline ? new Date(newTaskData.deadline).toISOString() : undefined;
+
       // Create task via API
       const response = await tasksApi.create({
         projectId: project.projectId,
@@ -148,7 +153,7 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
         description: newTaskData.description,
         status: newTaskData.status,
         assignedTo: newTaskData.assignedTo,
-        deadline: newTaskData.deadline?.toISOString(),
+        deadline: deadlineString,
         effort: newTaskData.effort,
       });
 
