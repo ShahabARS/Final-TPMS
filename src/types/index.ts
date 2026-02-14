@@ -1,16 +1,20 @@
 // Type definitions for our application
 
-export enum Role {
-  ADMIN = 'ADMIN',
-  LEADER = 'LEADER',
-  MEMBER = 'MEMBER',
-}
+export const Role = {
+  ADMIN: 'ADMIN',
+  LEADER: 'LEADER',
+  MEMBER: 'MEMBER',
+} as const;
 
-export enum TaskStatus {
-  TODO = 'TODO',
-  DOING = 'DOING',
-  DONE = 'DONE',
-}
+export type Role = typeof Role[keyof typeof Role];
+
+export const TaskStatus = {
+  TODO: 'TODO',
+  DOING: 'DOING',
+  DONE: 'DONE',
+} as const;
+
+export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
 
 export interface User {
   userId: string;

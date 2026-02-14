@@ -39,7 +39,7 @@ function Column({ status, tasks, onTaskClick, onAddTask }: ColumnProps) {
   };
 
   return (
-    <div className={`flex-1 min-w-[280px] rounded-lg border-2 p-4 ${getStatusColor(status)}`}>
+    <div className={`flex-1 min-w-70 rounded-lg border-2 p-4 ${getStatusColor(status)}`}>
       {/* Column Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-800">
@@ -51,7 +51,7 @@ function Column({ status, tasks, onTaskClick, onAddTask }: ColumnProps) {
       </div>
 
       {/* Tasks List */}
-      <div className="space-y-2 min-h-[200px]">
+      <div className="space-y-2 min-h-50">
         {columnTasks.length === 0 ? (
           <div className="text-center py-8 text-gray-400 text-sm">
             No tasks
