@@ -50,9 +50,16 @@ export const errorHandler = (err, req, res, next) => {
     method: req.method,
   });
 
-  // Send response
-  res.status(statusCode).json({
+  // Send response (include dev details when not in production)
+  const responseBody = {
     success: false,
     message,
-  });
+  };
+
+  if (process.env.NODE_ENV !== 'production') {
+    responseBody.error = err?.message;
+    responseBody.stack = err?.stack;
+  }
+
+  res.status(statusCode).json(responseBody);
 };

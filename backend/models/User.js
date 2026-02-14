@@ -40,7 +40,8 @@ const userSchema = new mongoose.Schema(
 );
 
 // Index for faster email lookups (login)
-userSchema.index({ email: 1 });
+// Email is already indexed via `unique: true` in the schema field definition.
+// Avoid defining the same index twice to prevent Mongoose duplicate index warnings.
 
 // Method to compare password (for login)
 userSchema.methods.comparePassword = async function (candidatePassword) {

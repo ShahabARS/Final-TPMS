@@ -1,3 +1,4 @@
+```markdown
 # BoardPage Implementation Guide
 
 ## ✅ What We've Built
@@ -118,68 +119,6 @@ tasks.map(task => <TaskCard key={task.taskId} task={task} />)
 
 ---
 
-## 🔄 Data Flow
+... (archived)
 
 ```
-App.tsx
-  └── BoardPage (manages tasks state)
-      └── Column (receives tasks as prop)
-          └── TaskCard (receives task as prop)
-              └── onClick → calls BoardPage's handleTaskClick
-                  └── Opens modal
-```
-
----
-
-## 🚀 Next Steps
-
-1. **Create Modals:**
-   - CreateTaskModal
-   - TaskDetailModal
-   - BoardSettingsModal
-   - TeamMembersModal
-   - CreateColumnModal
-
-2. **Add API Integration:**
-   - Replace sample tasks with API calls
-   - Connect to MongoDB backend
-
-3. **Add Drag-and-Drop:**
-   - Allow moving tasks between columns
-   - Update task status automatically
-
-4. **Enhance Features:**
-   - Task editing
-   - Task deletion
-   - Column customization
-   - User assignment
-
----
-
-## 💡 Key Takeaways
-
-- **Components are reusable**: TaskCard can be used anywhere
-- **State lives in parent**: BoardPage manages all tasks, passes to children
-- **Props flow down**: Data goes from parent → child
-- **Events flow up**: Child calls parent's function via props
-- **TypeScript helps**: Catches errors before runtime
-
----
-
-## 🐛 Troubleshooting
-
-**Tasks not showing?**
-- Check browser console for errors
-- Verify tasks array has correct `status` matching columns
-
-**Modals not opening?**
-- Check `openModal` state is updating
-- Verify onClick handlers are connected
-
-**Styling issues?**
-- Ensure Tailwind is configured correctly
-- Check `index.css` imports Tailwind directives
-
----
-
-**Ready to build modals?** Let me know when you want to create the first modal component!
