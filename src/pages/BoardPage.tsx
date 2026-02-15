@@ -101,7 +101,14 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
           status: apiTask.status as TaskStatus,
           deadline: apiTask.deadline ? new Date(apiTask.deadline) : undefined,
           effort: apiTask.effort,
-          assignedTo: apiTask.assignedTo,
+          // API may populate `assignedTo` as an object when populated by the backend.
+          // Normalize to string (user id) to avoid rendering objects in React.
+          assignedTo:
+            typeof apiTask.assignedTo === 'string'
+              ? apiTask.assignedTo
+              : apiTask.assignedTo && (apiTask.assignedTo as any)._id
+              ? String((apiTask.assignedTo as any)._id)
+              : undefined,
         }));
 
         setTasks(convertedTasks);
@@ -165,7 +172,12 @@ function BoardPage({ userEmail, onLogout }: BoardPageProps) {
         status: response.data.status as TaskStatus,
         deadline: response.data.deadline ? new Date(response.data.deadline) : undefined,
         effort: response.data.effort,
-        assignedTo: response.data.assignedTo,
+        assignedTo:
+          typeof response.data.assignedTo === 'string'
+            ? response.data.assignedTo
+            : response.data.assignedTo && response.data.assignedTo._id
+            ? String(response.data.assignedTo._id)
+            : undefined,
       };
 
       setTasks([...tasks, newTask]);
